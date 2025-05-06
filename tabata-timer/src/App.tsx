@@ -1,7 +1,104 @@
 import { useState, useEffect, useRef } from 'react';
-import { DifficultyLevel, TabataSettings, TimerPhase } from './types';
-import { PRESET_SETTINGS, AUDIO_BEEPS } from './constants';
+import { TimerPhase, WorkoutProgram } from './types';
+import { AUDIO_BEEPS } from './constants';
 
+// Define the spinning tabata program directly in the App.tsx
+const spinningTabataProgram: WorkoutProgram = {
+  id: 'spinning-tabata',
+  name: 'Spinning Tabata',
+  description: 'A high-intensity interval workout on the spin bike',
+  totalDuration: 20 * 60, // 20 minutes in seconds
+  segments: [
+    {
+      startTime: 0,
+      endTime: 2 * 60,
+      name: 'Warm-up',
+      type: 'Easy Pedal',
+      cadence: '70–80',
+      resistance: '3–4',
+      notes: 'Seated, light effort',
+      isTabata: false
+    },
+    {
+      startTime: 2 * 60,
+      endTime: 6 * 60,
+      name: 'Tabata Set 1',
+      type: 'Seated Sprints',
+      cadence: '100–120',
+      resistance: '4–5',
+      notes: '8x (20s sprint / 10s rest)',
+      isTabata: true,
+      tabataWork: 20,
+      tabataRest: 10
+    },
+    {
+      startTime: 6 * 60,
+      endTime: 7 * 60,
+      name: 'Recovery',
+      type: 'Easy Pedal',
+      cadence: '60–70',
+      resistance: '2–3',
+      notes: 'Light pedal, breathe',
+      isTabata: false
+    },
+    {
+      startTime: 7 * 60,
+      endTime: 11 * 60,
+      name: 'Tabata Set 2',
+      type: 'Standing Climbs',
+      cadence: '60–70',
+      resistance: '7–8',
+      notes: '8x (20s climb / 10s rest)',
+      isTabata: true,
+      tabataWork: 20,
+      tabataRest: 10
+    },
+    {
+      startTime: 11 * 60,
+      endTime: 12 * 60,
+      name: 'Recovery',
+      type: 'Easy Pedal',
+      cadence: '60–70',
+      resistance: '2–3',
+      notes: 'Stay seated, hydrate',
+      isTabata: false
+    },
+    {
+      startTime: 12 * 60,
+      endTime: 16 * 60,
+      name: 'Tabata Set 3',
+      type: 'Power Sprints',
+      cadence: '110–125',
+      resistance: '6–7',
+      notes: '8x (20s sprint / 10s rest)',
+      isTabata: true,
+      tabataWork: 20,
+      tabataRest: 10
+    },
+    {
+      startTime: 16 * 60,
+      endTime: 18 * 60,
+      name: 'Cool Down',
+      type: 'Light Pedal',
+      cadence: '60–70',
+      resistance: '2–3',
+      notes: 'Gradually reduce effort',
+      isTabata: false
+    },
+    {
+      startTime: 18 * 60,
+      endTime: 20 * 60,
+      name: 'Idle/End',
+      type: 'Optional Spinout',
+      cadence: '60–70',
+      resistance: '1–2',
+      notes: 'Completely relaxed',
+      isTabata: false
+    }
+  ]
+};
+
+// Helper function to format time as mm:ss
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -9,81 +106,103 @@ const formatTime = (seconds: number): string => {
 };
 
 const App: React.FC = () => {
-  const [settings, setSettings] = useState<TabataSettings>(
-    PRESET_SETTINGS[DifficultyLevel.EASY]
-  );
-  const [difficulty, setDifficulty] = useState<DifficultyLevel>(DifficultyLevel.EASY);
+  // Program and segment tracking
+  const [selectedProgram, setSelectedProgram] = useState<WorkoutProgram | null>(null);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<number>(0);
+  
+  // Tabata specific states
+  const [tabataRound, setTabataRound] = useState<number>(1);
+  const [isTabataWorkPhase, setIsTabataWorkPhase] = useState<boolean>(true);
+  
+  // Timer states
   const [phase, setPhase] = useState<TimerPhase>(TimerPhase.IDLE);
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [currentRound, setCurrentRound] = useState<number>(1);
-  const [currentSet, setCurrentSet] = useState<number>(1);
+  const [totalTimeElapsed, setTotalTimeElapsed] = useState<number>(0);
   const [isActive, setIsActive] = useState<boolean>(false);
   
   const intervalRef = useRef<number | null>(null);
 
-  // Calculate total session duration in seconds
-  const calculateTotalSessionTime = (): number => {
-    const { workTime, restTime, rounds, sets, restBetweenSets } = settings;
-    const roundTime = workTime + restTime;
-    const setTime = roundTime * rounds;
-    // Total time including rest between sets
-    return (setTime * sets) + (restBetweenSets * (sets - 1));
+  // Get the current segment based on total time elapsed
+  const getCurrentSegment = () => {
+    if (!selectedProgram) return null;
+    
+    return selectedProgram.segments.find(segment => 
+      totalTimeElapsed >= segment.startTime && totalTimeElapsed < segment.endTime
+    ) || null;
   };
-
+  
   // Get current phase color
   const getPhaseColor = (): string => {
-    switch (phase) {
-      case TimerPhase.WORK:
-        return 'var(--red)';
-      case TimerPhase.REST:
-        return 'var(--blue)';
-      case TimerPhase.SET_REST:
-        return 'var(--aqua)';
-      case TimerPhase.COMPLETED:
-        return 'var(--green)';
-      default:
+    const segment = getCurrentSegment();
+    if (!segment) {
+      return 'var(--yellow)'; // Default color
+    }
+    
+    if (segment.isTabata) {
+      return isTabataWorkPhase ? 'var(--red)' : 'var(--blue)';
+    }
+    
+    // Colors based on segment type
+    switch (segment.name) {
+      case 'Warm-up':
         return 'var(--yellow)';
+      case 'Recovery':
+        return 'var(--aqua)';
+      case 'Cool Down':
+        return 'var(--green)';
+      case 'Idle/End':
+        return 'var(--purple)';
+      default:
+        return 'var(--orange)';
     }
   };
 
   // Get phase name for display
   const getPhaseName = (): string => {
-    switch (phase) {
-      case TimerPhase.WORK:
-        return 'Work!';
-      case TimerPhase.REST:
-        return 'Rest';
-      case TimerPhase.SET_REST:
-        return 'Set Break';
-      case TimerPhase.COMPLETED:
-        return 'Completed!';
-      default:
-        return 'Ready';
+    if (phase === TimerPhase.IDLE) return 'Ready';
+    if (phase === TimerPhase.COMPLETED) return 'Completed!';
+    
+    const segment = getCurrentSegment();
+    if (!segment) return 'Ready';
+    
+    if (segment.isTabata) {
+      return `${segment.name} - ${isTabataWorkPhase ? 'Work!' : 'Rest'}`;
     }
+    
+    return segment.name;
   };
 
-  // Calculate progress percentage for the current phase
+  // Get additional info for the current phase
+  const getPhaseInfo = (): string => {
+    const segment = getCurrentSegment();
+    if (!segment) return '';
+    
+    let info = `${segment.type} | ${segment.cadence} RPM | ${segment.resistance} resistance`;
+    
+    if (segment.isTabata) {
+      info += ` | Round ${tabataRound}/8`;
+    }
+    
+    return info;
+  };
+
+  // Calculate progress percentage for the current phase or tabata interval
   const calculateProgress = (): number => {
     if (phase === TimerPhase.IDLE) return 0;
     if (phase === TimerPhase.COMPLETED) return 100;
     
-    let totalTime;
-    switch (phase) {
-      case TimerPhase.WORK:
-        totalTime = settings.workTime;
-        break;
-      case TimerPhase.REST:
-        totalTime = settings.restTime;
-        break;
-      case TimerPhase.SET_REST:
-        totalTime = settings.restBetweenSets;
-        break;
-      default:
-        totalTime = 0;
-    }
+    const segment = getCurrentSegment();
+    if (!segment) return 0;
     
-    const elapsed = totalTime - timeLeft;
-    return (elapsed / totalTime) * 100;
+    if (segment.isTabata) {
+      const totalTime = isTabataWorkPhase ? segment.tabataWork! : segment.tabataRest!;
+      const elapsed = totalTime - timeLeft;
+      return (elapsed / totalTime) * 100;
+    } else {
+      const segmentDuration = segment.endTime - segment.startTime;
+      const segmentElapsed = totalTimeElapsed - segment.startTime;
+      return (segmentElapsed / segmentDuration) * 100;
+    }
   };
 
   // Play sound based on timer state
@@ -107,56 +226,94 @@ const App: React.FC = () => {
 
   // Handle timer tick
   const tick = () => {
-    setTimeLeft((prevTime) => {
+    if (!selectedProgram) return;
+    
+    setTimeLeft((prevTimeLeft) => {
       // Play countdown beep for last 3 seconds of each phase
-      if (prevTime <= 3 && prevTime > 0) {
+      if (prevTimeLeft <= 3 && prevTimeLeft > 0) {
         playSound('countdown');
       }
       
-      // If time's up, move to next phase
-      if (prevTime <= 1) {
-        moveToNextPhase();
+      // If current interval is over
+      if (prevTimeLeft <= 1) {
+        handleIntervalComplete();
         return 0;
       }
       
-      return prevTime - 1;
+      return prevTimeLeft - 1;
+    });
+    
+    setTotalTimeElapsed((prev) => {
+      // If workout is complete
+      if (prev + 1 >= selectedProgram.totalDuration) {
+        completeWorkout();
+        return prev;
+      }
+      return prev + 1;
     });
   };
 
-  // Move to the next timer phase
-  const moveToNextPhase = () => {
-    // Play sound for phase change
+  // Handle completion of current interval (work/rest in tabata or regular segment)
+  const handleIntervalComplete = () => {
+    const segment = getCurrentSegment();
+    if (!segment) return;
+    
     playSound('start');
     
-    if (phase === TimerPhase.IDLE) {
-      // Start with work phase
-      setPhase(TimerPhase.WORK);
-      setTimeLeft(settings.workTime);
-    } else if (phase === TimerPhase.WORK) {
-      // Work phase completed, move to rest
-      setPhase(TimerPhase.REST);
-      setTimeLeft(settings.restTime);
-    } else if (phase === TimerPhase.REST) {
-      // Rest phase completed
-      if (currentRound < settings.rounds) {
-        // Move to next round
-        setCurrentRound(currentRound + 1);
-        setPhase(TimerPhase.WORK);
-        setTimeLeft(settings.workTime);
-      } else if (currentSet < settings.sets) {
-        // Round completed, take longer rest between sets
-        setPhase(TimerPhase.SET_REST);
-        setTimeLeft(settings.restBetweenSets);
+    if (segment.isTabata) {
+      // Handle tabata interval completion
+      if (isTabataWorkPhase) {
+        // Work phase complete, move to rest
+        setIsTabataWorkPhase(false);
+        setTimeLeft(segment.tabataRest!);
       } else {
-        // All sets and rounds completed
+        // Rest phase complete
+        if (tabataRound < 8) {
+          // Move to next tabata round
+          setTabataRound(prev => prev + 1);
+          setIsTabataWorkPhase(true);
+          setTimeLeft(segment.tabataWork!);
+        } else {
+          // Tabata section complete, move to next segment
+          setTabataRound(1);
+          setIsTabataWorkPhase(true);
+          
+          const nextSegmentIndex = currentSegmentIndex + 1;
+          if (nextSegmentIndex < selectedProgram.segments.length) {
+            setCurrentSegmentIndex(nextSegmentIndex);
+            const nextSegment = selectedProgram.segments[nextSegmentIndex];
+            
+            if (nextSegment.isTabata) {
+              setTimeLeft(nextSegment.tabataWork!);
+            } else {
+              setTimeLeft(nextSegment.endTime - nextSegment.startTime);
+            }
+          } else {
+            completeWorkout();
+          }
+        }
+      }
+    } else {
+      // Non-tabata segment complete, move to next segment
+      const nextSegmentIndex = currentSegmentIndex + 1;
+      
+      if (nextSegmentIndex < selectedProgram.segments.length) {
+        setCurrentSegmentIndex(nextSegmentIndex);
+        const nextSegment = selectedProgram.segments[nextSegmentIndex];
+        
+        if (nextSegment.isTabata) {
+          // Starting a tabata segment
+          setTabataRound(1);
+          setIsTabataWorkPhase(true);
+          setTimeLeft(nextSegment.tabataWork!);
+        } else {
+          // Regular segment
+          setTimeLeft(nextSegment.endTime - nextSegment.startTime);
+        }
+      } else {
+        // Workout complete
         completeWorkout();
       }
-    } else if (phase === TimerPhase.SET_REST) {
-      // Set rest completed, start next set
-      setCurrentSet(currentSet + 1);
-      setCurrentRound(1);
-      setPhase(TimerPhase.WORK);
-      setTimeLeft(settings.workTime);
     }
   };
 
@@ -173,6 +330,8 @@ const App: React.FC = () => {
 
   // Start or pause the timer
   const toggleTimer = () => {
+    if (!selectedProgram) return;
+    
     if (isActive) {
       // Pause timer
       if (intervalRef.current) {
@@ -183,13 +342,33 @@ const App: React.FC = () => {
     } else {
       // Start timer
       setIsActive(true);
+      
       if (phase === TimerPhase.IDLE || phase === TimerPhase.COMPLETED) {
         // Reset and start from beginning
         resetTimer();
-        moveToNextPhase();
+        initializeWorkout();
       }
+      
       // Start interval
       intervalRef.current = setInterval(tick, 1000) as unknown as number;
+    }
+  };
+
+  // Initialize workout state
+  const initializeWorkout = () => {
+    if (!selectedProgram) return;
+    
+    setPhase(TimerPhase.WORK);
+    setTotalTimeElapsed(0);
+    setCurrentSegmentIndex(0);
+    
+    const firstSegment = selectedProgram.segments[0];
+    if (firstSegment.isTabata) {
+      setTabataRound(1);
+      setIsTabataWorkPhase(true);
+      setTimeLeft(firstSegment.tabataWork!);
+    } else {
+      setTimeLeft(firstSegment.endTime - firstSegment.startTime);
     }
   };
 
@@ -201,17 +380,25 @@ const App: React.FC = () => {
     }
     setIsActive(false);
     setPhase(TimerPhase.IDLE);
-    setCurrentRound(1);
-    setCurrentSet(1);
-    setTimeLeft(settings.workTime);
+    setTotalTimeElapsed(0);
+    setCurrentSegmentIndex(0);
+    setTabataRound(1);
+    setIsTabataWorkPhase(true);
+    
+    if (selectedProgram) {
+      const firstSegment = selectedProgram.segments[0];
+      if (firstSegment.isTabata) {
+        setTimeLeft(firstSegment.tabataWork!);
+      } else {
+        setTimeLeft(firstSegment.endTime - firstSegment.startTime);
+      }
+    }
   };
 
-  // Change difficulty level
-  const changeDifficulty = (level: DifficultyLevel) => {
-    if (isActive) return; // Don't change settings while timer is running
-    
-    setDifficulty(level);
-    setSettings(PRESET_SETTINGS[level]);
+  // Handle program selection
+  const handleProgramSelect = () => {
+    // Simply set the spinning tabata program directly
+    setSelectedProgram(spinningTabataProgram);
     resetTimer();
   };
 
@@ -223,6 +410,48 @@ const App: React.FC = () => {
       }
     };
   }, []);
+
+  // Update time left when changing segments
+  useEffect(() => {
+    if (!isActive || !selectedProgram) return;
+    
+    const segment = getCurrentSegment();
+    if (!segment) return;
+    
+    // Find index of current segment
+    const segmentIndex = selectedProgram.segments.findIndex(s => 
+      s.startTime <= totalTimeElapsed && s.endTime > totalTimeElapsed
+    );
+    
+    if (segmentIndex !== currentSegmentIndex) {
+      setCurrentSegmentIndex(segmentIndex);
+      
+      // When entering a new segment
+      const newSegment = selectedProgram.segments[segmentIndex];
+      if (newSegment.isTabata) {
+        setTabataRound(1);
+        setIsTabataWorkPhase(true);
+        setTimeLeft(newSegment.tabataWork!);
+      } else {
+        setTimeLeft(newSegment.endTime - totalTimeElapsed);
+      }
+    }
+  }, [totalTimeElapsed, selectedProgram, isActive, currentSegmentIndex]);
+
+  // Add keyboard shortcut for space bar to start/pause
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        toggleTimer();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [toggleTimer]);
 
   // Calculate progress percentage for the progress ring
   const progressPercent = calculateProgress();
@@ -246,9 +475,7 @@ const App: React.FC = () => {
               {getPhaseName()}
             </div>
             <div className="round-info">
-              {phase !== TimerPhase.IDLE && phase !== TimerPhase.COMPLETED && (
-                <>Round {currentRound}/{settings.rounds} • Set {currentSet}/{settings.sets}</>
-              )}
+              {phase !== TimerPhase.IDLE && phase !== TimerPhase.COMPLETED && getPhaseInfo()}
             </div>
           </div>
         </div>
@@ -257,35 +484,44 @@ const App: React.FC = () => {
           <button 
             className={isActive ? "warning" : "primary"} 
             onClick={toggleTimer}
+            disabled={!selectedProgram}
           >
             {isActive ? 'Pause' : phase === TimerPhase.COMPLETED ? 'Start New' : 'Start'}
           </button>
-          <button onClick={resetTimer} disabled={phase === TimerPhase.IDLE}>Reset</button>
+          <button 
+            onClick={resetTimer} 
+            disabled={!selectedProgram || phase === TimerPhase.IDLE}
+          >
+            Reset
+          </button>
         </div>
       </div>
       
       <div className="settings">
-        <div className="settings-title">Difficulty</div>
-        <div className="difficulty-options">
-          <button 
-            className={`difficulty-btn ${difficulty === DifficultyLevel.EASY ? 'active' : ''}`}
-            onClick={() => changeDifficulty(DifficultyLevel.EASY)}
-            disabled={isActive}
-          >
-            Easy (20s/40s)
-          </button>
-          <button 
-            className={`difficulty-btn ${difficulty === DifficultyLevel.HARD ? 'active' : ''}`}
-            onClick={() => changeDifficulty(DifficultyLevel.HARD)}
-            disabled={isActive}
-          >
-            Hard (40s/20s)
-          </button>
+        <div className="settings-title">Program</div>
+        <div className="program-selector">
+          {selectedProgram ? (
+            <div className="selected-program">
+              <h3>{selectedProgram.name}</h3>
+              <p>{selectedProgram.description}</p>
+              <p>Duration: {formatTime(selectedProgram.totalDuration)}</p>
+            </div>
+          ) : (
+            <button 
+              className="primary"
+              onClick={handleProgramSelect}
+              disabled={isActive}
+            >
+              Select Program
+            </button>
+          )}
         </div>
         
-        <div className="session-info">
-          Session duration: {formatTime(calculateTotalSessionTime())}
-        </div>
+        {selectedProgram && (
+          <div className="workout-progress">
+            Total progress: {formatTime(totalTimeElapsed)} / {formatTime(selectedProgram.totalDuration)}
+          </div>
+        )}
       </div>
       
       <div className="footer">
