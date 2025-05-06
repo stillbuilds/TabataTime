@@ -1,4 +1,4 @@
-import { WorkoutProgram } from '../types';
+import { WorkoutProgram } from '../src/types';
 
 const spinningTabata: WorkoutProgram = {
   id: 'spinning-tabata',
@@ -8,17 +8,27 @@ const spinningTabata: WorkoutProgram = {
   segments: [
     {
       startTime: 0,
-      endTime: 2 * 60,
+      endTime: 30,
+      name: 'Get Ready',
+      type: 'Prep Position',
+      cadence: '—',
+      resistance: '—',
+      notes: 'Mount bike, adjust position',
+      isTabata: false
+    },
+    {
+      startTime: 30,
+      endTime: 2 * 60 + 30, // 2:30
       name: 'Warm-up',
       type: 'Easy Pedal',
       cadence: '70–80',
       resistance: '3–4',
-      notes: 'Seated, light effort',
+      notes: 'Light, seated',
       isTabata: false
     },
     {
-      startTime: 2 * 60,
-      endTime: 6 * 60,
+      startTime: 2 * 60 + 30, // 2:30
+      endTime: 6 * 60 + 30, // 6:30
       name: 'Tabata Set 1',
       type: 'Seated Sprints',
       cadence: '100–120',
@@ -29,18 +39,18 @@ const spinningTabata: WorkoutProgram = {
       tabataRest: 10
     },
     {
-      startTime: 6 * 60,
-      endTime: 7 * 60,
+      startTime: 6 * 60 + 30, // 6:30
+      endTime: 7 * 60 + 30, // 7:30
       name: 'Recovery',
       type: 'Easy Pedal',
       cadence: '60–70',
       resistance: '2–3',
-      notes: 'Light pedal, breathe',
+      notes: 'Light spin',
       isTabata: false
     },
     {
-      startTime: 7 * 60,
-      endTime: 11 * 60,
+      startTime: 7 * 60 + 30, // 7:30
+      endTime: 11 * 60 + 30, // 11:30
       name: 'Tabata Set 2',
       type: 'Standing Climbs',
       cadence: '60–70',
@@ -51,42 +61,42 @@ const spinningTabata: WorkoutProgram = {
       tabataRest: 10
     },
     {
-      startTime: 11 * 60,
-      endTime: 12 * 60,
+      startTime: 11 * 60 + 30, // 11:30
+      endTime: 12 * 60 + 30, // 12:30
       name: 'Recovery',
       type: 'Easy Pedal',
       cadence: '60–70',
       resistance: '2–3',
-      notes: 'Stay seated, hydrate',
+      notes: 'Light spin',
       isTabata: false
     },
     {
-      startTime: 12 * 60,
-      endTime: 16 * 60,
+      startTime: 12 * 60 + 30, // 12:30
+      endTime: 16 * 60 + 30, // 16:30
       name: 'Tabata Set 3',
       type: 'Power Sprints',
       cadence: '110–125',
       resistance: '6–7',
-      notes: '8x (20s sprint / 10s rest)',
+      notes: '8x (20s sprint / 10s rest), Power seated or standing',
       isTabata: true,
       tabataWork: 20,
       tabataRest: 10
     },
     {
-      startTime: 16 * 60,
-      endTime: 18 * 60,
-      name: 'Cool Down',
+      startTime: 16 * 60 + 30, // 16:30
+      endTime: 18 * 60, // 18:00
+      name: 'Cooldown',
       type: 'Light Pedal',
       cadence: '60–70',
       resistance: '2–3',
-      notes: 'Gradually reduce effort',
+      notes: 'Gradual effort reduction',
       isTabata: false
     },
     {
-      startTime: 18 * 60,
-      endTime: 20 * 60,
-      name: 'Idle/End',
-      type: 'Optional Spinout',
+      startTime: 18 * 60, // 18:00
+      endTime: 20 * 60, // 20:00
+      name: 'End Spinout',
+      type: 'Very Easy Pedal',
       cadence: '60–70',
       resistance: '1–2',
       notes: 'Completely relaxed',
