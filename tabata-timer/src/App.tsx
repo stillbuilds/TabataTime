@@ -49,8 +49,6 @@ const App: React.FC = () => {
     });
   };
   
-  // -------- Timer Control Functions ---------
-  
   // Start the timer
   const startTimer = () => {
     if (intervalRef.current !== null) return;
@@ -110,8 +108,6 @@ const App: React.FC = () => {
     return selectedProgram.segments[currentSegmentIndex];
   };
   
-  // -------- Interval Management Functions ---------
-  
   // Handle completion of a timer interval
   const handleIntervalComplete = () => {
     if (!selectedProgram) return;
@@ -169,12 +165,13 @@ const App: React.FC = () => {
       return;
     }
     
-    logState(`Going to segment ${nextSegmentIndex}`);
+    const currentSegment = selectedProgram.segments[currentSegmentIndex];
+    const nextSegment = selectedProgram.segments[nextSegmentIndex];
+    
+    logState(`Going from segment ${currentSegmentIndex} to ${nextSegmentIndex}`);
     
     // Set up the next segment
     setCurrentSegmentIndex(nextSegmentIndex);
-    
-    const nextSegment = selectedProgram.segments[nextSegmentIndex];
     
     // Reset tabata state if needed
     if (nextSegment.isTabata) {
@@ -182,6 +179,7 @@ const App: React.FC = () => {
       setTabataRound(1);
       setTimeLeft(nextSegment.tabataWork || 20);
     } else {
+      // Set time left to the duration of the next segment
       const segmentDuration = nextSegment.endTime - nextSegment.startTime;
       setTimeLeft(segmentDuration);
     }
@@ -196,8 +194,6 @@ const App: React.FC = () => {
     playSound('end');
     stopTimer();
   };
-  
-  // -------- User Interaction Functions ---------
   
   // Toggle between play and pause
   const toggleTimer = () => {
@@ -234,12 +230,12 @@ const App: React.FC = () => {
     
     if (selectedProgram) {
       const firstSegment = selectedProgram.segments[0];
+      const segmentDuration = firstSegment.endTime - firstSegment.startTime;
       
       if (firstSegment.isTabata) {
         setTimeLeft(firstSegment.tabataWork || 20);
       } else {
-        const firstSegmentDuration = firstSegment.endTime - firstSegment.startTime;
-        setTimeLeft(firstSegmentDuration);
+        setTimeLeft(segmentDuration);
       }
     }
   };
@@ -257,11 +253,12 @@ const App: React.FC = () => {
     setTabataPhase(TabataPhase.WORK);
     
     const firstSegment = selectedProgram.segments[0];
+    const segmentDuration = firstSegment.endTime - firstSegment.startTime;
+    
     if (firstSegment.isTabata) {
       setTimeLeft(firstSegment.tabataWork || 20);
     } else {
-      const duration = firstSegment.endTime - firstSegment.startTime;
-      setTimeLeft(duration);
+      setTimeLeft(segmentDuration);
     }
   };
   
@@ -279,8 +276,6 @@ const App: React.FC = () => {
     }
   };
   
-  // -------- UI Helper Functions ---------
-  
   // Get color for current phase
   const getPhaseColor = (): string => {
     const segment = getCurrentSegment();
@@ -294,13 +289,15 @@ const App: React.FC = () => {
     
     // Colors based on segment type
     switch (segment.name) {
-      case 'Warm-up':
+      case 'Get Ready':
         return 'var(--yellow)';
-      case 'Recovery':
+      case 'Warm-up':
         return 'var(--aqua)';
-      case 'Cool Down':
+      case 'Recovery':
         return 'var(--green)';
-      case 'Idle/End':
+      case 'Cooldown':
+        return 'var(--blue)';
+      case 'End Spinout':
         return 'var(--purple)';
       default:
         return 'var(--orange)';
@@ -351,13 +348,12 @@ const App: React.FC = () => {
       const elapsed = totalTime - timeLeft;
       return (elapsed / totalTime) * 100;
     } else {
+      // Calculate progress based on remaining time
       const segmentDuration = segment.endTime - segment.startTime;
-      const segmentElapsed = totalElapsedTime - segment.startTime;
-      return (segmentElapsed / segmentDuration) * 100;
+      const elapsed = timeLeft;
+      return ((segmentDuration - elapsed) / segmentDuration) * 100;
     }
   };
-  
-  // -------- Effect Hooks ---------
   
   // Clean up interval on unmount
   useEffect(() => {
@@ -383,8 +379,7 @@ const App: React.FC = () => {
     };
   }, [isActive, phase, selectedProgram]);
   
-  // -------- Component Render ---------
-  
+  // Calculate progress percentage
   const progressPercent = calculateProgress();
   
   return (
