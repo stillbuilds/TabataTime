@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { TimerPhase, WorkoutProgram } from './types';
 import { AUDIO_BEEPS } from './constants';
 
@@ -224,44 +224,16 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle timer tick
-  const tick = () => {
+  // Handle completion of current interval (work/rest in tabata or regular segment)
+  const handleIntervalComplete = useCallback(() => {
     if (!selectedProgram) return;
     
-    setTimeLeft((prevTimeLeft) => {
-      // Play countdown beep for last 3 seconds of each phase
-      if (prevTimeLeft <= 3 && prevTimeLeft > 0) {
-        playSound('countdown');
-      }
-      
-      // If current interval is over
-      if (prevTimeLeft <= 1) {
-        handleIntervalComplete();
-        return 0;
-      }
-      
-      return prevTimeLeft - 1;
-    });
-    
-    setTotalTimeElapsed((prev) => {
-      // If workout is complete
-      if (prev + 1 >= selectedProgram.totalDuration) {
-        completeWorkout();
-        return prev;
-      }
-      return prev + 1;
-    });
-  };
-
-  // Handle completion of current interval (work/rest in tabata or regular segment)
-  const handleIntervalComplete = () => {
     const segment = getCurrentSegment();
     if (!segment) return;
     
     playSound('start');
     
     if (segment.isTabata) {
-      // Handle tabata interval completion
       if (isTabataWorkPhase) {
         // Work phase complete, move to rest
         setIsTabataWorkPhase(false);
@@ -274,7 +246,7 @@ const App: React.FC = () => {
           setIsTabataWorkPhase(true);
           setTimeLeft(segment.tabataWork!);
         } else {
-          // Tabata section complete, move to next segment
+          // Tabata section complete (8 rounds done), move to next segment
           setTabataRound(1);
           setIsTabataWorkPhase(true);
           
@@ -315,7 +287,36 @@ const App: React.FC = () => {
         completeWorkout();
       }
     }
-  };
+  }, [currentSegmentIndex, isTabataWorkPhase, selectedProgram, tabataRound]);
+
+  // Handle timer tick
+  const tick = useCallback(() => {
+    if (!selectedProgram) return;
+    
+    setTimeLeft((prevTimeLeft) => {
+      // Play countdown beep for last 3 seconds of each phase
+      if (prevTimeLeft <= 3 && prevTimeLeft > 0) {
+        playSound('countdown');
+      }
+      
+      // If current interval is over
+      if (prevTimeLeft <= 1) {
+        handleIntervalComplete();
+        return 0;
+      }
+      
+      return prevTimeLeft - 1;
+    });
+    
+    setTotalTimeElapsed((prev) => {
+      // If workout is complete
+      if (prev + 1 >= selectedProgram.totalDuration) {
+        completeWorkout();
+        return prev;
+      }
+      return prev + 1;
+    });
+  }, [handleIntervalComplete, selectedProgram]);
 
   // Handle workout completion
   const completeWorkout = () => {
@@ -329,7 +330,7 @@ const App: React.FC = () => {
   };
 
   // Start or pause the timer
-  const toggleTimer = () => {
+  const toggleTimer = useCallback(() => {
     if (!selectedProgram) return;
     
     if (isActive) {
@@ -352,10 +353,10 @@ const App: React.FC = () => {
       // Start interval
       intervalRef.current = setInterval(tick, 1000) as unknown as number;
     }
-  };
+  }, [isActive, phase, selectedProgram, tick]);
 
   // Initialize workout state
-  const initializeWorkout = () => {
+  const initializeWorkout = useCallback(() => {
     if (!selectedProgram) return;
     
     setPhase(TimerPhase.WORK);
@@ -370,10 +371,10 @@ const App: React.FC = () => {
     } else {
       setTimeLeft(firstSegment.endTime - firstSegment.startTime);
     }
-  };
+  }, [selectedProgram]);
 
   // Reset the timer
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -393,7 +394,7 @@ const App: React.FC = () => {
         setTimeLeft(firstSegment.endTime - firstSegment.startTime);
       }
     }
-  };
+  }, [selectedProgram]);
 
   // Handle program selection
   const handleProgramSelect = () => {
@@ -410,33 +411,6 @@ const App: React.FC = () => {
       }
     };
   }, []);
-
-  // Update time left when changing segments
-  useEffect(() => {
-    if (!isActive || !selectedProgram) return;
-    
-    const segment = getCurrentSegment();
-    if (!segment) return;
-    
-    // Find index of current segment
-    const segmentIndex = selectedProgram.segments.findIndex(s => 
-      s.startTime <= totalTimeElapsed && s.endTime > totalTimeElapsed
-    );
-    
-    if (segmentIndex !== currentSegmentIndex) {
-      setCurrentSegmentIndex(segmentIndex);
-      
-      // When entering a new segment
-      const newSegment = selectedProgram.segments[segmentIndex];
-      if (newSegment.isTabata) {
-        setTabataRound(1);
-        setIsTabataWorkPhase(true);
-        setTimeLeft(newSegment.tabataWork!);
-      } else {
-        setTimeLeft(newSegment.endTime - totalTimeElapsed);
-      }
-    }
-  }, [totalTimeElapsed, selectedProgram, isActive, currentSegmentIndex]);
 
   // Add keyboard shortcut for space bar to start/pause
   useEffect(() => {
